@@ -1,0 +1,59 @@
+version: "3.7"
+
+networks:
+  web:
+    driver: "bridge"
+    name: "web-test-net"
+  backend:
+    driver: "bridge"
+    name: "backend-test-net"
+
+services:
+  nginx:
+    container_name: ${PROJECT_NAME}-nginx
+    build: 
+      context: docker/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_HTTP_PORT}:80"
+      - "${FRONTEND_HTTPS_PORT}:443"
+    volumes:
+      - ./app:/var/www/html
+      - ./logs/nginx:/var/log/nginx
+    hostname: ${PROJECT_NAME}-nginx
+    networks:
+      web:
+      backend:
+    depends_on:
+      - backend
+  backend:
+    container_name: ${PROJECT_NAME}-backend
+    build:
+      context: docker/php/7.2
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/var/www/html
+    hostname: ${PROJECT_NAME}-backend
+    environment:
+      APPLICATION_ENV: "development"
+    networks:
+      backend:
+    depends_on:
+      - db
+  db:
+    container_name: ${PROJECT_NAME}-db
+    build:
+      context: docker/db/postgresql
+      dockerfile: Dockerfile
+    ports:
+      - "${DB_HOST_AND_PORT}:5432"
+    volumes:
+      - ./var/postgresql:/var/lib/postgresql
+    networks:
+      backend:
+    hostname: ${PROJECT_NAME}-db
+    environment:
+      POSTGRES_USER: "${DB_USER}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: "${DB_NAME}"
+      PGDATA: "/var/lib/postgresql/pgdata"
