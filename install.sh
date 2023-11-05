@@ -1,37 +1,52 @@
 #!/usr/bin/env bash
+set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-#sudo add-apt-repository -y \
-#   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-   # $(lsb_release -cs) \
-   # stable"
+sudo true
 
-#sudo apt update
-#sudo apt install -y --no-install-recommends docker-ce
+sudo apt update
+sudo apt -y install ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-#sudo curl -fsSL "https://github.com/docker/compose/releases/download/1.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-#sudo chmod +x /usr/local/bin/docker-compose
+# Add the repository to Apt sources:
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
 
-# удаляем старую запись из Hosts
+# install docker
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# remove old hosts if exists
 sudo sed -i '/#test-app-host$/d' /etc/hosts
 
-# записываем новые хосты
-sudo bash -c "cat >> /etc/hosts ${SCRIPT_DIR}/install/etc/hosts.txt"
+# write new hosts into hosts file
+sudo bash -c "cat >> /etc/hosts ${SCRIPT_DIR}/etc/hosts.txt"
 
+# setting up the docker
+sudo usermod -aG docker $USER
 
-# Настройка docker
-#sudo usermod -aG docker $USER
+# build images and create containers
+cd "${SCRIPT_DIR}" && sudo -u $USER docker compose -f docker-compose.yml up --no-start
 
-cd "${SCRIPT_DIR}" && docker compose -f docker-compose.yml up --no-start
+#delete app folder before clone
+rm -rf ./app
 
-git clone git@github.com:dobrainya/test.git app
+#clone application
+git clone https://github.com/dobrainya/test.git app
 
 # install composer
-docker-compose run --rm backend composer install
+sudo -u $USER docker compose run --rm backend composer install
 
 # run migrations
-docker compose run --rm backend bash -c "echo y | ./yii migrate/up"
+sudo -u $USER docker compose run --service-ports --rm backend bash -c "echo y | ./yii migrate/up"
 
+# clean up
 sudo apt autoremove -y
 sudo apt clean
+
+echo 'Done! You need to restart your system'

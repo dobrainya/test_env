@@ -40,6 +40,8 @@ services:
       backend:
     depends_on:
       - db
+    links:
+      - db
   db:
     container_name: ${PROJECT_NAME}-db
     build:
